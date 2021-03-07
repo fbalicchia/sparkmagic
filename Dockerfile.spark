@@ -1,19 +1,26 @@
-FROM debian:stretch
+FROM openjdk:8-jdk-slim
+RUN apt-get -qq update && \
+    apt-get -qq upgrade -y && \
+    apt-get -qq install -y git wget && \
+    wget -q https://www-us.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /tmp && \
+    tar xf /tmp/apache-maven-3.6.3-bin.tar.gz -C /opt && \
+    ln -s /opt/apache-maven-3.6.3 /opt/maven && \
+    apt-get -qq install gnupg && \
+    echo "deb https://dl.bintray.com/sbt/debian /" | tee -a /etc/apt/sources.list.d/sbt.list && \
+    apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823 && \
+    apt-get -qq update && \
+    apt-get -qq install sbt && \
+    apt-get -qq install -y r-base && \
+    apt install -y python python-pip && \
+    apt install -y python3 python3-pip && \
+    # We remove ensurepip since it adds no functionality since pip is
+    # installed on the image and it just takes up 1.6MB on the image
+    rm -r /usr/lib/python*/ensurepip && \
+    pip install --upgrade pip setuptools
 
-RUN apt-get update && apt-get install -yq --no-install-recommends --force-yes \
-    curl \
-    git \
-    openjdk-8-jdk \
-    maven \
-    python2.7 python2.7-setuptools \
-    python3 python3-setuptools \
-    r-base \
-    r-base-core && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install pip for Python3
-RUN easy_install3 pip py4j
-RUN pip install --upgrade setuptools
+ENV M2_HOME=/opt/maven
+ENV MAVEN_HOME=/opt/maven
+ENV PATH=${PATH}:${M2_HOME}/bin
 
 ENV PYTHONHASHSEED 0
 ENV PYTHONIOENCODING UTF-8
@@ -34,20 +41,16 @@ RUN mkdir -p /apps/build && \
 # ----------
 # Build Livy
 # ----------
-ENV LIVY_BUILD_VERSION 0.6.0-incubating
+ENV LIVY_BUILD_VERSION 0.7.1-incubating
 ENV LIVY_APP_PATH /apps/apache-livy-$LIVY_BUILD_VERSION-bin
 ENV LIVY_BUILD_PATH /apps/build/livy
 
-# Install setuptools for Python 2.7 for Livy
-RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
-    python get-pip.py --user && \
-    rm get-pip.py && \
-    python -m pip install --upgrade setuptools
+
 
 RUN cd /apps/build && \
 	git clone https://github.com/apache/incubator-livy.git livy && \
 	cd $LIVY_BUILD_PATH && \
-  git checkout v$LIVY_BUILD_VERSION-rc2 && \
+  git checkout v$LIVY_BUILD_VERSION-rc1 && \
     mvn -DskipTests -Dspark.version=$SPARK_BUILD_VERSION clean package && \
     ls -al $LIVY_BUILD_PATH && ls -al $LIVY_BUILD_PATH/assembly && ls -al $LIVY_BUILD_PATH/assembly/target && \
     unzip $LIVY_BUILD_PATH/assembly/target/apache-livy-${LIVY_BUILD_VERSION}-bin.zip -d /apps && \
